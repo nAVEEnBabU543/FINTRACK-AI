@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash,check_password_hash
 import random
 import time
 import sqlite3
@@ -43,15 +43,14 @@ def login():
         user_password = request.form.get("password", "").strip()
 
         # Check email first
-        conn = sqlite3.connect("fintrackai.db")
+        conn = sqlite3.connect('fintrackai.db')
+        cur = conn.cursor()
         cur.execute("SELECT EMAIL,PASSWORD_HASH FROM USER")
-        cur.fetchall()
         x = dict(cur.fetchall())
-
 
         if user_email in x:
             # Check hashed password
-            if check_password_hash(x[hash_password], user_password):
+            if check_password_hash(x[user_email], user_password):
                 return render_template("dashboard.html", user_email=user_email)
             else:
                 error = "Invalid password."
@@ -134,6 +133,96 @@ def income():
 
     except Exception as e:
         return render_template("income.html", error=f"Error: {str(e)}")
+    
+@app.route("/expense", methods=["GET", "POST"])
+def expense():
+    if request.method == "GET":
+        return render_template("expense.html")
+
+    email = request.form.get("email", "").strip()
+    groceries = request.form.get("groceries", "").strip()
+    travel = request.form.get("travel", "").strip()
+    medfit = request.form.get("medfit", "").strip()
+    lep = request.form.get("lep", "").strip()
+    monthly_rent = request.form.get("monthly_rent", "").strip()
+    m_bills = request.form.get("m_bills", "").strip()
+    fashion = request.form.get("fashion", "").strip()
+    entertainment = request.form.get("entertainment", "").strip()
+    education = request.form.get("education", "").strip()
+    emsaving = request.form.get("emsaving", "").strip()
+    miscellaneous = request.form.get("miscellaneous", "").strip()
+
+    if not email:
+        return render_template("expense.html", error="Email is required.")
+
+    try:
+        conn = sqlite3.connect("fintrackai.db")
+        cur = conn.cursor()
+
+        cur.execute("SELECT USER_ID FROM USER WHERE EMAIL = ?", (email,))
+        user_row = cur.fetchone()
+
+        if not user_row:
+            conn.close()
+            return render_template("expense.html", error="No user found with this email.")
+
+        user_id = user_row[0]
+        expense_id = cur.execute("SELECT max(expense_ID) FROM expensePROFILE")
+        x = cur.fetchall()
+        if x[0][0]==None:
+            x = 1
+        else:
+            x = x[0][0]+1
+
+        print(x,user_id,email,groceries,travel,medfit,lep,monthly_rent,m_bills,fashion,entertainment,education,emsaving,miscellaneous)
+        cur.execute("""
+            INSERT INTO EXPENSEPROFILE (
+                Expense_ID,
+                USER_ID,
+                GROCERIES,
+                TRAVEL,
+                MEDFIT,
+                LEP,
+                MONTHLY_RENT,
+                M_BILLS,
+                FASHION,
+                ENTERTAINMENT,
+                EDUCATION,
+                EMSAVING,
+                MISCELLANEOUS,
+                CREATED_AT
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
+        """, (
+            x,
+            int(user_id),
+            float(groceries),
+            float(travel),
+            float(medfit),
+            float(lep),
+            float(monthly_rent),
+            float(m_bills),
+            float(fashion),
+            float(entertainment),
+            float(education),
+            float(emsaving),
+            float(miscellaneous),
+            datetime.datetime.now()
+        ))
+
+        conn.commit()
+        conn.close()
+
+        return render_template("expense.html", success="Expense profile saved successfully.")
+
+    except sqlite3.IntegrityError as e:
+        return render_template("expense.html", error=f"Database integrity error: {str(e)}")
+    except ValueError:
+        return render_template("expense.html", error="Please enter valid numeric values in all amount fields.")
+    except Exception as e:
+        return render_template("expense.html", error=f"Error: {str(e)}")
+
+
 
 @app.route("/send-otp", methods=["POST"])
 def send_otp():
@@ -176,15 +265,15 @@ def send_otp():
         print("\n" + "=" * 60)
         print(f"CORRECT OTP for {email}: {otp}")
         print("=" * 60 + "\n")
-        sender_email = "naveenbabukommu543@gmail.com"
-        app_password = "zjse nwps saud nkol"
-        
+        sender_email = "inikolagpt@gmail.com"
+        app_password = "cxzi ycpy xxwq lxyk"
+
         subject = "OTP Verification"
         body = f"Your OTP is: {otp}"
         message = f"Subject: {subject}\nTo: {email}\nFrom: {sender_email}\n\n{body}"
 
-        server = smtplib.SMTP("smpt.gmail.com",587)
-        server.starttls()   
+        server = smtplib.SMTP("smtp.gmail.com",587)
+        server.starttls()
         server.login(sender_email,app_password)
         server.sendmail(sender_email,email,message)
         server.quit()
@@ -241,7 +330,7 @@ def verify_otp():
             "{registered_users[email]['password']}","{datetime.datetime.now()}")
             ''')
         conn.commit()
-
+        
         print(pending_users)
         cur.execute("select max(otp_id) from VERIFICATION")
         x2 = cur.fetchall()
@@ -272,4 +361,4 @@ def users():
 
 
 if __name__ == "__main__":
-    app.run(debug=True,host="0.0.0.0",port = 5000)
+    app.run(debug=True,host = "0.0.0.0",port = 5050)
