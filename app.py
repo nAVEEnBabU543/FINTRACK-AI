@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from werkzeug.security import generate_password_hash,check_password_hash
+from recommendation import target
 import random
 import time
 import sqlite3
@@ -221,8 +222,102 @@ def expense():
         return render_template("expense.html", error="Please enter valid numeric values in all amount fields.")
     except Exception as e:
         return render_template("expense.html", error=f"Error: {str(e)}")
+    
+@app.route("/goals", methods=["GET", "POST"])
+def goals():
+    if request.method == "GET":
+        return render_template("goals.html")
+
+    try:
+        email = request.form.get("email", "").strip()
+        goal_name = request.form.get("goal_name", "").strip()
+        goal_amount = request.form.get("goal_amount", "").strip()
+        start_date = request.form.get("start_date", "").strip()
+        end_date = request.form.get("end_date", "").strip()
+        goal_status = request.form.get("goal_status", "").strip()
+
+        if not email or not goal_name or not goal_amount or not start_date or not end_date or not goal_status:
+            return jsonify({"success": False, "error": "All fields are required."})
+
+        goal_amount = float(goal_amount)
 
 
+
+        # Calculate duration in months
+       
+
+        ob = target(email)
+        res = ob.monthly_target(goal_amount)
+
+
+        monthly_target = res[0]
+        duration_in_month = res[1]
+
+        conn = sqlite3.connect("fintrackai.db")
+        cur = conn.cursor()
+
+        cur.execute("SELECT USER_ID FROM USER WHERE EMAIL = ?", (email,))
+        user = cur.fetchone()
+
+        if not user:
+            conn.close()
+            return jsonify({"success": False, "error": "User not found."})
+
+        user_id = user[0]
+
+        # Generate GOALID
+        goal_id = random.randint(10000, 99999)
+
+        # Optional: avoid duplicate GOALID
+        while True:
+            cur.execute("SELECT 1 FROM GOALS WHERE GOALID = ?", (goal_id,))
+            existing = cur.fetchone()
+            if not existing:
+                break
+            goal_id = random.randint(10000, 99999)
+
+        now = datetime.datetime.now()
+
+        cur.execute("""
+            INSERT INTO GOALS (
+                GOALID,
+                USER_ID,
+                GOAL_NAME,
+                START_DATE,
+                END_DATE,
+                GOAL_AMOUNT,
+                MONTHLY_SAVING_T,
+                GOAL_STATUS,
+                CREATED_AT,
+                UPDATED_AT
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            goal_id,
+            user_id,
+            goal_name,
+            start_date,
+            end_date,
+            goal_amount,
+            monthly_target,
+            goal_status,
+            now,
+            now
+        ))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "monthlytarget": monthly_target,
+            "durationinmonth": duration_in_month
+        })
+
+    except ValueError:
+        return jsonify({"success": False, "error": "Please enter valid numeric values and valid dates."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 @app.route("/send-otp", methods=["POST"])
 def send_otp():
@@ -266,7 +361,7 @@ def send_otp():
         print(f"CORRECT OTP for {email}: {otp}")
         print("=" * 60 + "\n")
         sender_email = "inikolagpt@gmail.com"
-        app_password = "cxzi ycpy xxwq lxyk"
+        app_password = "aosk uoaf ivax bkuz"
 
         subject = "OTP Verification"
         body = f"Your OTP is: {otp}"
